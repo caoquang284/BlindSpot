@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Blind Spot - The Nightmare Update</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #000; overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        #gameCanvas {
+            display: block; width: 100%; height: 100%; position: absolute; z-index: 1;
+        }
+        
+        /* UI HUD */
+        #uiLayer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; z-index: 5; display: none;
+        }
+        .top-bar { padding: 20px; display: flex; justify-content: flex-start; align-items: flex-start; }
+        #objectivePanel { background: rgba(0,0,0,0.6); border: 1px solid #444; padding: 10px 15px; border-radius: 5px; }
+        #objectiveTitle { color: #aaa; font-size: 12px; margin-bottom: 5px; }
+        #objectiveValue { color: #fff; font-size: 22px; font-weight: bold; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        .bottom-center { display: flex; justify-content: center; padding: 0 0 24px 0; }
+        .meter-container { display: flex; flex-direction: row; align-items: center; gap: 18px; background: rgba(0,0,0,0.65); padding: 10px 20px; border-radius: 30px; border: 1px solid #333; }
+        .meter-label { color: #ccc; font-size: 11px; margin-bottom: 3px; text-align: center; }
+        .meter-group { display: flex; flex-direction: column; align-items: center; }
+        #focusBarBg { width: 160px; height: 8px; background: rgba(255,255,255,0.15); border-radius: 5px; overflow: hidden; }
+        #focusBarFill { width: 100%; height: 100%; background: #00ffcc; transition: background 0.2s; }
+        .meter-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.15); }
+        .sparks-group { display: flex; flex-direction: column; align-items: center; }
+
+        /* Screens */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; pointer-events: auto;
+            color: white; text-align: center; z-index: 10;
+        }
+        h1 { font-size: 36px; margin-bottom: 10px; text-shadow: 2px 2px 0 #f00; letter-spacing: 2px; }
+        h2 { font-size: 24px; color: #ffcc00; margin-bottom: 20px; }
+        p { font-size: 14px; max-width: 90%; line-height: 1.5; color: #ccc; margin-bottom: 20px; }
+        .btn {
+            margin: 10px; padding: 12px 30px; font-size: 18px; background: #fff; color: #000;
+            border: 2px solid #fff; border-radius: 5px; font-weight: bold; cursor: pointer; transition: all 0.2s;
+        }
+        .btn:active { background: #ccc; }
+        .btn-outline { background: transparent; color: #fff; }
+        .btn-outline:active { background: rgba(255,255,255,0.2); }
+
+        /* Map Menu */
+        #mapScreen { background: #0a0a0a; justify-content: flex-start; overflow-y: auto; padding: 40px 0; align-items: center; }
+        .saga-container { width: 90%; max-width: 500px; margin-bottom: 30px; background: #111; border: 1px solid #333; border-radius: 10px; padding: 15px; text-align: center; }
+        .saga-title { color: #ff4444; font-size: 18px; font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .saga-desc { font-size: 12px; color: #888; margin-bottom: 15px; }
+        .level-grid { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .lvl-btn { width: 50px; height: 50px; background: #222; color: #555; border: 2px solid #333; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: not-allowed; display: flex; align-items: center; justify-content: center; }
+        .lvl-btn.unlocked { background: #000; color: #fff; border-color: #00ffcc; cursor: pointer; box-shadow: 0 0 10px rgba(0, 255, 204, 0.2); }
+        .lvl-btn.unlocked:active { background: #00ffcc; color: #000; }
+        .lvl-btn.completed { background: #00ffcc; color: #000; border-color: #00ffcc; }
+
+        /* Effects */
+        .vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 150px rgba(0,0,0,0.8); transition: box-shadow 0.1s; pointer-events: none; z-index: 2; }
+        .static {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('data:image/svg+xml;utf8,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+            opacity: 0; pointer-events: none; mix-blend-mode: screen; z-index: 3;
+        }
+        #jumpscare { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: red; opacity: 0; pointer-events: none; z-index: 20; display: none; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    <div class="vignette" id="vignette"></div>
+    <div class="static" id="staticNoise"></div>
+    <div id="jumpscare"></div>
+
+    <div id="uiLayer">
+        <div class="top-bar">
+            <div id="objectivePanel">
+                <div id="objectiveTitle">MỤC TIÊU</div>
+                <div id="objectiveValue">00:00</div>
+            </div>
+        </div>
+        <div class="bottom-center">
+            <div class="meter-container">
+                <div class="meter-group">
+                    <div class="meter-label">TỈNH TÁO</div>
+                    <div id="focusBarBg"><div id="focusBarFill"></div></div>
+                </div>
+                <div class="meter-divider"></div>
+                <div class="sparks-group">
+                    <div class="meter-label" style="color:#ffea00;">SỨC MẠNH</div>
+                    <div id="sparksValue" style="color:#ffea00; font-size:18px; font-weight:bold; line-height:1;">100</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menus -->
+    <div id="mapScreen" class="screen">
+        <h1 style="margin-top: 20px;">BLIND SPOT</h1>
+        <div id="mapSparksDisplay" style="color: #ffea00; font-size: 20px; font-weight: bold; margin-bottom: 10px; text-shadow: 0 0 5px rgba(255,234,0,0.5);">SỨC MẠNH HIỆN CÓ: 100</div>
+        <p>Bóng tối không đáng sợ bằng những thứ bên trong nó.</p>
+        
+        <button id="unlockBtn" class="btn btn-outline" style="font-size: 12px; padding: 8px 15px; margin-top: -10px; margin-bottom: 20px; border-color: #555; color: #aaa;" onclick="toggleUnlockAllLevels()">🔓 Mở Khóa Tất Cả Màn Chơi</button>
+        <div id="sagasContainer" style="width: 100%; display: flex; flex-direction: column; align-items: center;"></div>
+    </div>
+
+    <div id="startScreen" class="screen" style="display: none; background-color: #000; flex-direction: column; justify-content: center; align-items: center; z-index: 9999;">
+        <h2 id="preLevelTitle" style="color: #ff0000; font-size: 50px; font-weight: 900; letter-spacing: 10px; text-shadow: 0 0 20px rgba(255,0,0,0.8); margin-bottom: 20px; font-family: 'Courier New', Courier, monospace;">MAP 1: HÀNH LANG MÁU</h2>
+        <p id="preLevelDesc" style="color: #fff; font-size: 18px; text-align: center; max-width: 600px; margin-bottom: 20px; line-height: 1.5; font-family: 'Courier New', Courier, monospace; letter-spacing: 2px;">Chuẩn bị tinh thần.</p>
+        <div style="color: #ff3333; font-size: 24px; font-weight: bold; margin-bottom: 50px; text-shadow: 0 0 10px rgba(255,51,51,0.5);" id="preLevelObjective">MỤC TIÊU: SỐNG SÓT X GIÂY</div>
+        <button class="btn" style="background: transparent; color: #ff0000; border: 2px solid #ff0000; font-size: 20px; padding: 15px 40px; box-shadow: inset 0 0 10px rgba(255,0,0,0.5), 0 0 20px rgba(255,0,0,0.5); font-weight: bold; font-family: 'Courier New', Courier, monospace;" onclick="startGame()">▶ TIẾN VÀO BÓNG TỐI</button>
+        <button class="btn btn-outline" style="border-color: #555; color: #aaa; margin-top: 20px; font-family: 'Courier New', Courier, monospace;" onclick="showMap()">QUAY LẠI</button>
+    </div>
+
+    <div id="winScreen" class="screen" style="display: none;">
+        <h1 style="color: #00ffcc;">LEVEL CLEARED</h1>
+        <button class="btn" onclick="nextLevel()">MÀN TIẾP THEO</button>
+        <button class="btn btn-outline" onclick="showMap()">BẢN ĐỒ</button>
+    </div>
+
+    <div id="gameOverScreen" class="screen" style="display: none;">
+        <h1 style="color: #ff3333;">YOU DIED</h1>
+        <p id="deathReasonText" style="color: #ff8888; font-size: 15px; margin: 0 0 8px 0; font-weight: bold; letter-spacing: 1px;"></p>
+        <p id="deathTipText" style="color: #aaa; font-size: 12px; max-width: 320px; line-height: 1.6; margin: 0 0 20px 0;"></p>
+        <button class="btn" onclick="startGame()">THỬ LẠI</button>
+        <button class="btn btn-outline" onclick="showMap()">BẢN ĐỒ</button>
+    </div>
+
+    <!-- Màn hình chờ Loading -->
+    <div id="loadingScreen" class="screen" style="z-index: 100000; display: flex; background-color: #050505; flex-direction: column;">
+        <h1 style="color: #ff3333; font-size: 30px; letter-spacing: 5px; text-shadow: 0 0 10px rgba(255,0,0,0.5);">ĐANG KẾT NỐI VÀO ÁC MỘNG...</h1>
+        <div style="width: 300px; height: 10px; background: #222; border: 1px solid #444; margin-top: 20px; box-shadow: 0 0 10px #000;">
+            <div id="loadingBar" style="width: 0%; height: 100%; background: #ff3333; transition: width 0.2s;"></div>
+        </div>
+        <p id="loadingText" style="color: #aaa; margin-top: 15px; font-weight: bold;">0%</p>
+    </div>
+
+<script>
+    // --- CẤU HÌNH DATA 5 MAP ĐỈNH CAO ---
+    const gameLevels = [
+        { id: 0, name: "MAP 1", title: "HÀNH LANG MÁU", desc: "Ánh sáng là sự sống.", reqSparks: 0, type: "survive", target: 75, spawnRate: 1.5, types: ['watcher', 'wisp'], env: { bgUrl: 'https://i.ibb.co/xSPQszZ8/Map1dasua.png' } },
+        { id: 1, name: "MAP 2", title: "CĂN PHÒNG CŨ", desc: "Tắt đèn hoặc CHẾT.", reqSparks: 200, type: "survive", target: 90, spawnRate: 1.2, types: ['watcher', 'sprinter', 'moth', 'wisp'], env: { bgUrl: 'https://i.ibb.co/6Rk32TYS/Map-2-s-a.png', narrow: true } },
+        { id: 2, name: "MAP 3", title: "BỆNH VIỆN", desc: "Ảo giác bủa vây", reqSparks: 400, type: "survive", target: 90, spawnRate: 1.0, types: ['watcher', 'sprinter', 'stalker', 'moth', 'wisp'], env: { bgUrl: 'https://i.ibb.co/1tYF1S0B/Map-3-s-a.png', fastDrain: true } },
+        { id: 3, name: "MAP 4", title: "RỪNG MÙ SƯƠNG", desc: "Không còn nơi an toàn", reqSparks: 600, type: "survive", target: 120, spawnRate: 0.8, types: ['sprinter', 'phantom', 'stalker', 'moth', 'wisp'], env: { bgUrl: 'https://i.ibb.co/SXMC6vF2/Map-4-s-a.png', shortLight: true, flicker: true } },
+        { id: 4, name: "MAP 5", title: "VỰC THẲM", desc: "Hãy nhắm mắt lại...", reqSparks: 800, type: "survive", target: 150, spawnRate: 0.6, types: ['watcher', 'sprinter', 'phantom', 'stalker', 'moth', 'wisp'], env: { bgUrl: 'https://i.ibb.co/0j1PPCZB/Map-5-s-a.png', shortLight: true, narrow: true, fastDrain: true, flicker: true } }
+    ];
+
+    let maxUnlockedLevel = 0;
+    let realMaxUnlockedLevel = 0;
+    let isAllUnlocked = false;
+    let currentSelectedLevel = 0;
+
+    // --- GAME ENGINE ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const uiLayer = document.getElementById('uiLayer');
+    const focusFill = document.getElementById('focusBarFill');
+    const vignette = document.getElementById('vignette');
+    const staticNoise = document.getElementById('staticNoise');
+    const jumpscare = document.getElementById('jumpscare');
+    const objectiveValueEl = document.getElementById('objectiveValue');
+    const objectiveTitleEl = document.getElementById('objectiveTitle');
+
+    // --- ẢNH NHÂN VẬT ---
+    const playerImg = new Image();
+    playerImg.src = 'https://i.ibb.co/355cMVsd/Thi-t-k-ch-a-c-t-n.png'; // Link ảnh ví dụ (thay bằng ảnh thật của bạn)
+    let isPlayerImgLoaded = false;
+    playerImg.onload = () => { isPlayerImgLoaded = true; };
+
+    // --- ẢNH BACKGROUND (Cache để mượt hơn) ---
+    const bgImages = {};
+    function getBgImage(url) {
+        if (!url) return null;
+        if (!bgImages[url]) {
+            bgImages[url] = new Image();
+            bgImages[url].src = url;
+        }
+        return bgImages[url].complete && bgImages[url].naturalWidth !== 0 ? bgImages[url] : null;
+    }
+
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize); resize();
+
+    // --- AUDIO SYSTEM ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Audio pool cho footstep — 6 slot xoay vòng, cho phép nhiều tiếng chồng lên nhau
+    const FOOTSTEP_URL = 'https://www.image2url.com/r2/default/audio/1779863251086-c7e11127-32bd-42f2-9594-49639c15cef9.mp3';
+    const footstepPool = Array.from({ length: 2 }, () => {
+        const a = new Audio(FOOTSTEP_URL);
+        a.preload = 'auto';
+        return a;
+    });
+    let footstepPoolIdx = 0;
+
+    // Helper: kết nối gainNode vào destination với stereo pan, có fallback nếu trình duyệt không hỗ trợ
+    function connectWithPan(gainNode, pan) {
+        if (audioCtx.createStereoPanner) {
+            const panner = audioCtx.createStereoPanner();
+            panner.pan.value = Math.max(-1, Math.min(1, pan));
+            gainNode.connect(panner);
+            panner.connect(audioCtx.destination);
+        } else {
+            gainNode.connect(audioCtx.destination);
+        }
+    }
+
+    // Tiếng bước chân — dùng audio pool, volume theo khoảng cách
+    function playFootstep(dist, pan = 0) {
+        let vol = Math.min(1, Math.max(0.2, 1 - dist / 500));
+        const audio = footstepPool[footstepPoolIdx];
+        footstepPoolIdx = (footstepPoolIdx + 1) % footstepPool.length;
+        audio.volume = vol;
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+    }
+
+    // Tiếng rít của Moth (Nghịch lý)
+    function playShriek() {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(2000, audioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+    }
+
+    function playHeartbeat(isFake = false) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(isFake ? 60 : 50, audioCtx.currentTime); 
+        osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+        gainNode.gain.setValueAtTime(isFake ? 0.6 : 1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+        osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+    }
+
+    let staticSoundNode = null, staticGain = null;
+    function startStaticSound() {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        if(!staticSoundNode) {
+            const bufferSize = audioCtx.sampleRate * 2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            staticSoundNode = audioCtx.createBufferSource();
+            staticSoundNode.buffer = buffer;
+            staticSoundNode.loop = true;
+            staticGain = audioCtx.createGain();
+            staticGain.gain.value = 0;
+            staticSoundNode.connect(staticGain);
+            staticGain.connect(audioCtx.destination);
+            staticSoundNode.start();
+        }
+    }
+    function updateStaticSound(intensity) {
+        if(staticGain) staticGain.gain.setTargetAtTime(intensity * 0.3, audioCtx.currentTime, 0.1); 
+    }
+
+    function playJumpscare() {
+        // Nếu có link file mp3/wav riêng biệt thì play
+        if (scareAudioPlayer.src && scareAudioPlayer.src !== window.location.href) {
+            scareAudioPlayer.currentTime = 0;
+            scareAudioPlayer.play().catch(e => console.log("Không thể play audio ma", e));
+        }
+
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.5);
+        gainNode.gain.setValueAtTime(1, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+        osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+    }
+    function playDeathSound() {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+        osc.type = 'square'; osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    }
+
+    // Tiếng vật thể rơi/vỡ — burst noise tần số cao, tắt nhanh
+    function playAmbientBreaking(pan = 0) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const bufSize = Math.floor(audioCtx.sampleRate * 0.45);
+        const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.8);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'highpass'; filter.frequency.value = 900;
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        src.connect(filter); filter.connect(gain);
+        connectWithPan(gain, pan);
+        src.start();
+    }
+
+    // Tiếng kéo lê — rumble + crackle trung tần để nghe được trên mọi loa
+    function playAmbientDragging(pan = 0) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const duration = 1.2 + Math.random() * 0.8;
+        const bufSize = Math.floor(audioCtx.sampleRate * duration);
+        const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) {
+            let t = i / bufSize;
+            data[i] = (Math.random() * 2 - 1) * 0.7 * (Math.sin(t * 35) * 0.25 + 0.75);
+        }
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass'; filter.frequency.value = 600; filter.Q.value = 0.5;
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+        src.connect(filter); filter.connect(gain);
+        connectWithPan(gain, pan);
+        src.start();
+    }
+
+    // Tiếng la xa — oscillator mô phỏng tiếng hét vọng lại từ xa
+    function playDistantScream(pan = 0) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(260 + Math.random() * 80, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 0.25);
+        osc.frequency.linearRampToValueAtTime(170, audioCtx.currentTime + 0.9);
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + 0.1);
+        gain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.75);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.1);
+        filter.type = 'bandpass'; filter.frequency.value = 1100; filter.Q.value = 0.9;
+        osc.connect(filter); filter.connect(gain);
+        connectWithPan(gain, pan);
+        osc.start(); osc.stop(audioCtx.currentTime + 1.1);
+    }
+
+    // --- GAME STATE ---
+    let gameState = 'menu';
+    let levelData = null;
+    let timeSurvived = 0, killsThisLevel = 0, lastTime = 0;
+    let playerHP = 3;
+    const maxPlayerHP = 3;
+    let isLightOn = false, isHoldingTouch = false, isForcedBlink = false;
+    let forcedBlinkTimer = 0, randomFlickerTimer = 0;
+    let lightAngle = 0, focus = 100;
+    
+    // Nỗi sợ tột độ (Jumpscare system)
+    let isSubliminalScareActive = false;
+    let subliminalTimer = 0;
+    let subliminalCooldown = 0;
+    let scareImgAlpha = 0;
+    let hasPlayedScareSound = false;
+
+    const scareImg = new Image();
+    let isScareImgLoaded = false;
+    scareImg.onload = () => { isScareImgLoaded = true; };
+
+    // --- MẢNG 5 LINK TƯƠNG ỨNG VỚI 5 MAP ---
+    // Bạn dán 5 link ảnh ma khác nhau vào đây theo thứ tự nhé
+    const scareImageUrls = [
+        'https://genk.mediacdn.vn/2019/12/30/photo-1-15776759150391249485486.jpg', // Map 1
+        'https://cdn.xtmobile.vn/upload/news/content_prod/3IWNnSBU_top-phim-ma-bup-be-kinh-di-nhat-ac-quy-tro-ve-xtmobile.jpg', // Map 2
+        'https://png.pngtree.com/png-clipart/20231026/original/pngtree-the-shouting-horror-zombie-girl-in-a-dark-corridor-png-image_13444946.png', // Map 3
+        'https://assets.nintendo.com/image/upload/ar_16:9,b_auto:border,c_lpad/b_white/f_auto/q_auto/dpr_1.5/c_scale,w_500/store/software/switch/70010000092710/fbb46b695ecc369a6c7bcd6b4a3c581ebede18595efcbf5d79fb5b3fe6ad6635', // Map 4
+        'https://i.pinimg.com/736x/5a/c2/1c/5ac21cfbd0b42652e3ea3bf6c16c9822.jpg'  // Map 5
+    ];
+
+    // --- MẢNG 5 LINK ÂM THANH JUMPSCARE GIẬT MÌNH ---
+    // Điền 5 link file âm thanh (mp3, wav) vào đây
+    const scareAudioUrls = [
+        'https://www.image2url.com/r2/default/audio/1779864592359-4b6e7979-7d1a-46a6-b087-9dd90c3a2fda.mp3', // Âm thanh Map 1 (Đã có tiếng "rẹt rẹt" mặc định nếu để trống)
+        'https://www.image2url.com/r2/default/audio/1779864592359-4b6e7979-7d1a-46a6-b087-9dd90c3a2fda.mp3', // Âm thanh Map 2 
+        'https://www.image2url.com/r2/default/audio/1779864592359-4b6e7979-7d1a-46a6-b087-9dd90c3a2fda.mp3', // Âm thanh Map 3
+        'https://www.image2url.com/r2/default/audio/1779864592359-4b6e7979-7d1a-46a6-b087-9dd90c3a2fda.mp3', // Âm thanh Map 4
+        'https://www.image2url.com/r2/default/audio/1779864592359-4b6e7979-7d1a-46a6-b087-9dd90c3a2fda.mp3'  // Âm thanh Map 5
+    ];
+    const scareAudioPlayer = new Audio();
+
+    // --- MẢNG 5 LINK NHẠC NỀN XUYÊN SUỐT (BGM) CỦA TỪNG MAP ---
+    // Điền link youtube chuyển sang mp3, hoặc bất cứ link nhạc nền nào vào
+    const bgmAudioUrls = [
+        'https://www.image2url.com/r2/default/audio/1779855245300-e38aa1a9-21a8-411a-bae4-2c340d7f507d.mp3', // Nhạc nền Map 1
+        'https://www.image2url.com/r2/default/audio/1779855245300-e38aa1a9-21a8-411a-bae4-2c340d7f507d.mp3', // Nhạc nền Map 2
+        'https://www.image2url.com/r2/default/audio/1779855245300-e38aa1a9-21a8-411a-bae4-2c340d7f507d.mp3', // Nhạc nền Map 3
+        'https://www.image2url.com/r2/default/audio/1779855245300-e38aa1a9-21a8-411a-bae4-2c340d7f507d.mp3', // Nhạc nền Map 4
+        'https://www.image2url.com/r2/default/audio/1779855245300-e38aa1a9-21a8-411a-bae4-2c340d7f507d.mp3'  // Nhạc nền Map 5
+    ];
+    const bgmAudioPlayer = new Audio();
+    bgmAudioPlayer.loop = true; // Cho phép lặp đi lặp lại vô tận trong lúc chơi
+
+    let center = { x: canvas.width/2, y: canvas.height/2 }, playerRadius = 15;
+    
+    let enemies = [];
+    let fakeEyes = []; 
+    let enemySpawnTimer = 0, heartbeatTimer = 0;
+    let currentGlitchIntensity = 0; 
+    let lightSparks = 100;
+    let darkGraceTimer = 0;
+    let phantomSoundTimer = 0;
+    let ambientSoundTimer = 0;
+
+    // --- KILL FEEDBACK ---
+    let deathParticles = [];
+    let floatingTexts = [];
+    let lightFlareTimer = 0;
+    let killShakeTimer = 0;
+    let damageShakeNow = false;
+    let deathReason = '';
+
+    // --- TUTORIAL SYSTEM ---
+    const tutorialState = {
+        holdLight: false,
+        footstep: false,
+        focusDrain: false,
+        forcedBlink: false,
+        darkDrain: false,
+        darkDanger: false,
+        firstBite: false,
+        behind: false,
+        paranoia: false,
+        mothWarn: false,
+    };
+    let activeHint = null; // { text, alpha, x, y, color, life, large }
+    let hintCooldown = 0;
+    // Structured tutorial phases (Map 1 only)
+    let tutorialPhase = 0;    // 0=not started, 1-4=active steps, -1=complete
+    let tutorialPaused = false;
+    let tutorialPhaseCheck = null; // () => bool — returns true when step is done
+    let tutorialWispsKilled = 0;
+    let tutorialPhaseTimer = 0;   // counts DOWN — used for timed auto-advances
+    let tutorialFootstepShown = false; // true after first-footstep pause shown
+    let teleportFlashes = []; // { x, y, alpha, color }
+    let footstepRipples = []; // { x, y, radius, alpha }
+    let justPlayedFootstep = false;
+
+    // --- INPUT ---
+    function handlePointerDown(e) { if(gameState !== 'playing' || isForcedBlink || isSubliminalScareActive) return; isHoldingTouch = true; updateLightAngle(e); }
+    function handlePointerUp(e) { isHoldingTouch = false; }
+    function handlePointerMove(e) { if(isHoldingTouch && !isForcedBlink && !isSubliminalScareActive) updateLightAngle(e); }
+    function updateLightAngle(e) {
+        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        let clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        if(clientX !== undefined) lightAngle = Math.atan2(clientY - center.y, clientX - center.x);
+    }
+    window.addEventListener('mousedown', handlePointerDown); window.addEventListener('mouseup', handlePointerUp); window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('touchstart', handlePointerDown); window.addEventListener('touchend', handlePointerUp); window.addEventListener('touchmove', handlePointerMove);
+
+    function updateHPDisplay() {
+        const hpDiv = document.getElementById('hpDisplay');
+        if (!hpDiv) return;
+        hpDiv.innerHTML = '';
+        for (let i = 0; i < maxPlayerHP; i++) {
+            const h = document.createElement('div');
+            h.className = 'hp-heart' + (i < playerHP ? '' : ' lost');
+            hpDiv.appendChild(h);
+        }
+    }
+
+    function damagePlayer(amount = 1, cause = '') {
+        playerHP = Math.max(0, playerHP - amount);
+        damageShakeNow = true;
+        updateHPDisplay();
+        if (playerHP <= 0) {
+            if (cause) deathReason = cause;
+            lightSparks = 0;
+            triggerGameOver();
+        } else {
+            document.getElementById('vignette').style.boxShadow = "inset 0 0 220px rgba(255,0,0,1)";
+        }
+    }
+
+    // --- ENEMY CLASS ---
+    class Enemy {
+        constructor(type) {
+            let angle = Math.random() * Math.PI * 2;
+            if (type === 'wisp' || type === 'moth') {
+                // Spawn randomly ON screen, away from player center
+                let spawnDist = 120 + Math.random() * (Math.min(canvas.width, canvas.height) * 0.32);
+                this.x = Math.max(30, Math.min(canvas.width - 30, center.x + Math.cos(angle) * spawnDist));
+                this.y = Math.max(30, Math.min(canvas.height - 30, center.y + Math.sin(angle) * spawnDist));
+            } else {
+                let spawnDist = Math.max(canvas.width, canvas.height) / 2 + 50;
+                this.x = center.x + Math.cos(angle) * spawnDist;
+                this.y = center.y + Math.sin(angle) * spawnDist;
+            }
+            this.radius = 12;
+            this.type = type; 
+            
+            if(type === 'watcher') { this.baseSpeed = 40 + Math.random() * 15; this.burnReq = 1.5; }
+            else if (type === 'sprinter') { this.baseSpeed = 50 + Math.random() * 20; this.burnReq = 1.2; this.orbitDir = (Math.random() > 0.5 ? 1 : -1); }
+            else if (type === 'stalker') { this.baseSpeed = 35 + Math.random() * 10; this.burnReq = 1.0; }
+            else if (type === 'phantom') { this.baseSpeed = 40 + Math.random() * 15; this.burnReq = 0.2; }
+            else if (type === 'moth') { this.baseSpeed = 0; this.countdownTimer = 1.0; }
+            else if (type === 'wisp') { this.baseSpeed = 0; this.burnReq = 0.05; this.countdownTimer = 1.0; }
+
+            this.inLight = false; 
+            this.burnProgress = 0; 
+            this.isDead = false;
+            this.darkTimer = Math.random() * 0.2; // Dùng cho cơ chế Teleport
+            
+            // Moth specific
+            this.hasBeenSeen = false;
+            this.hasShrieked = false;
+            this.darkDespawnTimer = 0;
+            this.fleeing = false;
+            this.fleeAngle = 0;
+
+            // Moth & Wisp luôn có mắt. Các loại khác 65% có mắt, 35% vô hình trong tối.
+            this.hasEyes = (type === 'moth') || (type === 'wisp') || (Math.random() > 0.35);
+        }
+        
+        update(dt, lightSpreadParam, lightMod = 1) {
+            let dx = this.x - center.x, dy = this.y - center.y;
+            let dist = Math.hypot(dx, dy);
+            let angleToPlayer = Math.atan2(dy, dx);
+            
+            let diff = Math.abs(angleToPlayer - lightAngle);
+            if (diff > Math.PI) diff = Math.PI * 2 - diff;
+            this.inLight = isLightOn && (diff < lightSpreadParam / 2);
+
+            // WISP: spawn on screen, player must light it within countdown or take damage
+            if (this.type === 'wisp') {
+                if (this.inLight) {
+                    this.burnProgress += (dt / this.burnReq);
+                    if (this.burnProgress >= 1) {
+                        this.isDead = true;
+                        lightSparks = Math.min(800, lightSparks + 10);
+                        playDeathSound();
+                        spawnDeathParticles(this.x, this.y, this.type);
+                        spawnFloatingText(this.x, this.y - this.radius - 8, '+10');
+                        lightFlareTimer = 0.13;
+                        killShakeTimer = 0.10;
+                    }
+                } else {
+                    this.countdownTimer -= dt;
+                    if (this.countdownTimer <= 0) {
+                        this.isDead = true;
+                        if (tutorialPhase <= 0) damagePlayer(1, 'wisp');
+                    }
+                }
+                return { dist: dist, isDead: this.isDead };
+            }
+
+            // MOTH: spawns on screen — DO NOT light it or instant death. Disappears safely after 2s.
+            if (this.type === 'moth') {
+                if (this.inLight) {
+                    // Player shone light on moth — instant kill player
+                    damagePlayer(maxPlayerHP, 'moth'); // instant death
+                    this.isDead = true; // moth disappears too
+                } else {
+                    this.countdownTimer -= dt;
+                    if (this.countdownTimer <= 0) {
+                        this.isDead = true; // safe disappear, no damage
+                    }
+                }
+                return { dist: dist, isDead: this.isDead };
+            }
+
+            // CÁC LOẠI QUÁI BÌNH THƯỜNG (watcher, sprinter, stalker, phantom)
+            else {
+                if (this.inLight) {
+                    this.burnProgress += (dt / this.burnReq) * lightMod;
+                    if (this.burnProgress >= 1) {
+                        this.isDead = true;
+                        lightSparks = Math.min(800, lightSparks + 15);
+                        if(this.type !== 'phantom') playDeathSound();
+                        spawnDeathParticles(this.x, this.y, this.type);
+                        spawnFloatingText(this.x, this.y - this.radius - 8, '+15');
+                        lightFlareTimer = 0.13;
+                        killShakeTimer = 0.14;
+                    }
+                    let currentSpeed = (focus < 20) ? this.baseSpeed * 0.2 : 0;
+                    if(currentSpeed > 0) {
+                        this.x -= Math.cos(angleToPlayer) * currentSpeed * dt;
+                        this.y -= Math.sin(angleToPlayer) * currentSpeed * dt;
+                    }
+                } else {
+                    this.burnProgress = Math.max(0, this.burnProgress - dt * 2);
+                    let speedMult = 2.0;
+                    if(this.type === 'sprinter') speedMult = isHoldingTouch ? 2.0 : 4.0;
+                    let timeRamp = 1 + Math.min(timeSurvived / 100, 0.8);
+                    let virtualSpeed = this.baseSpeed * speedMult * timeRamp;
+
+                    this.darkTimer += dt;
+                    if (this.darkTimer >= 0.5) {
+                        let teleportDist = virtualSpeed * 0.5;
+                        let fc = this.type === 'phantom' ? '#003322' : '#330000';
+                        teleportFlashes.push({ x: this.x, y: this.y, alpha: 0.65, color: fc });
+                        this.x -= Math.cos(angleToPlayer) * teleportDist;
+                        this.y -= Math.sin(angleToPlayer) * teleportDist;
+
+                        if (this.type === 'sprinter' && !isHoldingTouch) {
+                            let strafe = teleportDist * 0.8;
+                            this.x += Math.cos(angleToPlayer + Math.PI/2) * strafe * this.orbitDir;
+                            this.y += Math.sin(angleToPlayer + Math.PI/2) * strafe * this.orbitDir;
+                        }
+
+                        if(this.type !== 'phantom') {
+                            let pan = Math.max(-1, Math.min(1, (this.x - center.x) / (canvas.width / 2)));
+                            playFootstep(dist, pan);
+                            justPlayedFootstep = true;
+                            if (!isLightOn) footstepRipples.push({ x: this.x, y: this.y, radius: 4, alpha: 0.55 });
+                        }
+                        this.darkTimer = 0;
+                    }
+                }
+            }
+
+            if (dist < playerRadius + this.radius && !this.isDead && !this.fleeing && tutorialPhase <= 0) {
+                this.isDead = true;
+                playDeathSound();
+                damagePlayer(1, 'bite_' + this.type);
+            }
+
+            return { dist: dist, isDead: this.isDead };
+        }
+
+        draw() {
+            if (this.isDead) return;
+            let drawX = this.x + (this.inLight ? (Math.random()-0.5)*this.burnProgress*10 : 0);
+            let drawY = this.y + (this.inLight ? (Math.random()-0.5)*this.burnProgress*10 : 0);
+
+            ctx.beginPath(); ctx.arc(drawX, drawY, this.radius, 0, Math.PI*2);
+            
+            if (this.inLight) {
+                if(this.type === 'phantom') {
+                    ctx.fillStyle = `rgba(0, 255, 150, ${1 - this.burnProgress})`; ctx.shadowColor = '#00ffaa';
+                } else if(this.type === 'stalker') {
+                    let intensity = 150 + (this.burnProgress * 105);
+                    ctx.fillStyle = `rgb(${intensity}, ${intensity}, ${intensity})`; ctx.shadowColor = '#fff';
+                } else if (this.type === 'moth') {
+                    // MOTH TRẮNG LÓA
+                    let intensity = 200 + Math.random()*55;
+                    ctx.fillStyle = `rgb(${intensity}, ${intensity}, ${intensity})`; ctx.shadowColor = '#fff';
+                    ctx.shadowBlur = 30;
+                } else if (this.type === 'wisp') {
+                    let b = 200 + Math.floor(this.burnProgress * 55);
+                    ctx.fillStyle = `rgba(60, 130, ${b}, ${1 - this.burnProgress * 0.3})`; ctx.shadowColor = '#4499ff';
+                } else {
+                    let r = 170 + (this.burnProgress * 85), g = this.burnProgress * 180;
+                    ctx.fillStyle = `rgb(${r}, ${g}, 0)`; ctx.shadowColor = '#ffaa00';
+                }
+                
+                if(this.type !== 'moth') ctx.shadowBlur = 15 + (this.burnProgress * 10); 
+                ctx.fill();
+                
+                // Mắt
+                if (this.type === 'stalker' || this.type === 'moth') ctx.fillStyle = '#000';
+                else if (this.type === 'wisp') ctx.fillStyle = '#002288';
+                else ctx.fillStyle = '#fff';
+                ctx.fillRect(drawX - 4, drawY - 4, 3, 3); ctx.fillRect(drawX + 1, drawY - 4, 3, 3);
+
+                if (this.burnProgress > 0 && this.type !== 'phantom' && this.type !== 'moth') {
+                    ctx.beginPath(); ctx.arc(drawX, drawY, this.radius + 6, -Math.PI/2, -Math.PI/2 + (Math.PI * 2 * this.burnProgress));
+                    ctx.strokeStyle = (this.type==='stalker') ? '#fff' : (this.type==='wisp') ? '#4499ff' : '#ff9900'; ctx.lineWidth = 3; ctx.stroke();
+                }
+            } else if (this.type === 'wisp' || this.type === 'moth') {
+                // Wisp & Moth luôn hiện toàn thân — on-screen spawns, không ẩn dù sáng hay tối
+                ctx.fillStyle = this.type === 'wisp' ? 'rgba(50, 110, 210, 0.88)' : 'rgba(200, 200, 180, 0.85)';
+                ctx.shadowColor = this.type === 'wisp' ? '#4499ff' : '#ffffff';
+                ctx.shadowBlur = 8;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                // Eyes
+                ctx.fillStyle = this.type === 'wisp' ? 'rgba(80, 160, 255, 0.9)' : 'rgba(255, 255, 220, 0.9)';
+                ctx.beginPath(); ctx.arc(drawX-4, drawY-3, 2.5, 0, Math.PI*2); ctx.arc(drawX+4, drawY-3, 2.5, 0, Math.PI*2); ctx.fill();
+            } else if (!isHoldingTouch && this.hasEyes) {
+                // TRONG BÓNG TỐI: Chỉ hiện mắt nếu hasEyes = true
+                if (this.type !== 'stalker') {
+                    if (this.type === 'sprinter')     ctx.fillStyle = 'rgba(255, 100, 0, 0.9)';
+                    else if (this.type === 'phantom') ctx.fillStyle = 'rgba(0, 255, 150, 0.7)';
+                    else                              ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';    // watcher đỏ
+                    ctx.beginPath(); ctx.arc(drawX-4, drawY-3, 2.5, 0, Math.PI*2); ctx.arc(drawX+4, drawY-3, 2.5, 0, Math.PI*2); ctx.fill();
+                }
+            }
+            ctx.shadowBlur = 0;
+
+            // Countdown ring cho Wisp/Moth: co dần từ đầy → rỗng = đếm ngược hết thời gian
+            if ((this.type === 'wisp' || this.type === 'moth') && this.countdownTimer !== undefined) {
+                let filled = Math.max(0, this.countdownTimer / 1.0); // 1→0 khi hết giờ
+                ctx.beginPath();
+                ctx.arc(drawX, drawY, this.radius + 3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * filled);
+                ctx.strokeStyle = this.type === 'wisp' ? '#4499ff' : '#ffffff';
+                ctx.lineWidth = 2; ctx.stroke();
+            }
+        }
+    }
+
+    function spawnDeathParticles(x, y, type) {
+        let color = type === 'phantom' ? '#00ff96' : type === 'stalker' ? '#cccccc' : type === 'wisp' ? '#4499ff' : '#ff7700';
+        for (let i = 0; i < 12; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let speed = 90 + Math.random() * 160;
+            deathParticles.push({
+                x, y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                alpha: 1.0,
+                decay: 1.2 + Math.random() * 0.8,
+                size: 2.5 + Math.random() * 3.5,
+                color
+            });
+        }
+    }
+
+    function spawnFloatingText(x, y, text, color = '#ffea00') {
+        floatingTexts.push({ x, y, text, alpha: 1.2, decay: 1.4, vy: -55, color });
+    }
+
+    function isTutorialActive() {
+        return currentSelectedLevel <= 1;
+    }
+
+    function tryShowHint(key, text, x, y, color, large) {
+        if (!isTutorialActive() || tutorialState[key] || hintCooldown > 0) return;
+        tutorialState[key] = true;
+        hintCooldown = 4.8;
+        activeHint = { text, alpha: 0, x, y, color: color || 'rgba(255,255,255,0.95)', life: 3.2, large: large || false };
+    }
+
+    function advanceTutorialPhase() {
+        tutorialPaused = false;
+        tutorialPhaseCheck = null;
+        tutorialPhaseTimer = 0;
+        activeHint = null;
+        hintCooldown = 0;
+
+        if (tutorialPhase === 1) {
+            // ✅ Learned: hold to turn on light → spawn wisp ~135° OFF from current light angle
+            // so player is NOT already shining on it and must actively aim
+            tutorialState.holdLight = true;
+            enemies = [];
+            let wisp = new Enemy('wisp');
+            wisp.baseSpeed = 18;
+            wisp.countdownTimer = 6.0;
+            let sd = Math.min(canvas.width, canvas.height) * 0.30;
+            let spawnAngle = lightAngle + Math.PI * 0.75 * (Math.random() < 0.5 ? 1 : -1);
+            wisp.x = center.x + Math.cos(spawnAngle) * sd;
+            wisp.y = center.y + Math.sin(spawnAngle) * sd;
+            enemies.push(wisp);
+            tutorialPhase = 2;
+            tutorialPaused = true;
+            tutorialPhaseTimer = 0.6;  // brief window before burn can start — let hint fade in
+            activeHint = { text: 'RỌI ĐÈN VÀO CON QUỶ ĐỂ TIÊU DIỆT!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(255,234,0,0.98)', life: 999, large: true };
+            tutorialPhaseCheck = () => tutorialWispsKilled >= 1;
+
+        } else if (tutorialPhase === 2) {
+            // ✅ Learned: aim + kill → praise, spawn 3 more from different directions
+            enemies = [];
+            for (let k = 0; k < 3; k++) {
+                let wisp = new Enemy('wisp');
+                wisp.baseSpeed = 22;
+                wisp.countdownTimer = 6.0;
+                let angle = (k / 3) * Math.PI * 2 + Math.PI / 5;
+                let sd = Math.min(canvas.width, canvas.height) * 0.4;
+                wisp.x = center.x + Math.cos(angle) * sd;
+                wisp.y = center.y + Math.sin(angle) * sd;
+                enemies.push(wisp);
+            }
+            tutorialPhase = 3;
+            tutorialPaused = false;  // game runs — player must kill 3 more
+            activeHint = { text: 'XUẤT SẮC!  TIÊU DIỆT THÊM 3 CON!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(0,255,150,0.95)', life: 3.5, large: true };
+            hintCooldown = 3.5;
+            tutorialPhaseCheck = () => tutorialWispsKilled >= 4;
+
+        } else if (tutorialPhase === 3) {
+            // ✅ Learned: basic combat loop → teach focus drain
+            enemies = [];
+            focus = 100;
+            tutorialPhase = 4;
+            tutorialPaused = true;
+            activeHint = { text: 'ĐÈN CHIẾU LÂU SẼ HẾT NĂNG LƯỢNG!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(0,220,255,0.95)', life: 999, large: true };
+            tutorialPhaseCheck = () => focus < 30;   // pause block will force-drain focus
+
+        } else if (tutorialPhase === 4) {
+            // ✅ Learned: focus drains → teach releasing to regen
+            tutorialPhase = 5;
+            tutorialPaused = true;
+            focus = 25; // start low so regen is satisfying
+            activeHint = { text: 'THẢ TAY ĐỂ HỒI LẠI NĂNG LƯỢNG!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(0,255,204,0.95)', life: 999, large: true };
+            tutorialPhaseCheck = () => !isHoldingTouch && focus > 68;
+
+        } else if (tutorialPhase === 5) {
+            // ✅ Learned: regen focus → short breather before next mechanic
+            tutorialState.focusDrain = true;
+            tutorialPhase = 6;
+            tutorialPaused = true;
+            tutorialPhaseTimer = 1.8;  // quiet pause — no hint, let player breathe
+            activeHint = null;
+            tutorialPhaseCheck = () => tutorialPhaseTimer <= 0;
+
+        } else if (tutorialPhase === 6) {
+            // Breather done → reveal sparks drain mechanic
+            lightSparks = 300;
+            tutorialPhase = 7;
+            tutorialPaused = true;
+            tutorialPhaseTimer = 2.8;  // show drain for 2.8s then auto-advance
+            activeHint = { text: 'SỨC MẠNH TUỘT NẾU ĐỨNG TRONG TỐI!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(255,234,0,0.95)', life: 999, large: true };
+            tutorialPhaseCheck = () => tutorialPhaseTimer <= 0;
+
+        } else if (tutorialPhase === 7) {
+            // ✅ Learned: sparks drain in dark → teach killing = sparks reward
+            tutorialState.darkDrain = true;
+            enemies = [];
+            let wisp = new Enemy('wisp');
+            wisp.baseSpeed = 18;
+            wisp.countdownTimer = 6.0;
+            let sd = Math.min(canvas.width, canvas.height) * 0.30;
+            let spawnAngle = lightAngle + Math.PI * 0.75 * (Math.random() < 0.5 ? 1 : -1);
+            wisp.x = center.x + Math.cos(spawnAngle) * sd;
+            wisp.y = center.y + Math.sin(spawnAngle) * sd;
+            enemies.push(wisp);
+            tutorialPhase = 8;
+            tutorialPaused = true;
+            tutorialPhaseTimer = 0.6;  // let hint fade in before burn activates
+            activeHint = { text: 'GIẾT QUÁI ĐỂ LẤY LẠI SỨC MẠNH!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(255,120,30,0.98)', life: 999, large: true };
+            tutorialPhaseCheck = () => tutorialWispsKilled >= 5;
+
+        } else if (tutorialPhase === 8) {
+            // ✅ Learned: kill = sparks reward → reveal sparks = light power connection
+            tutorialPhase = 9;
+            tutorialPaused = true;
+            tutorialPhaseTimer = 3.2;
+            activeHint = { text: 'SỨC MẠNH CÀNG CAO → ĐÈN CÀNG MẠNH!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(255,200,0,0.95)', life: 999, large: true };
+            tutorialPhaseCheck = () => tutorialPhaseTimer <= 0;
+
+        } else if (tutorialPhase === 9) {
+            // ✅ Tutorial complete
+            tutorialPhase = -1;
+            tutorialPaused = false;
+            enemies = [];
+            activeHint = { text: 'SẴN SÀNG CHIẾN ĐẤU! CHÚC MAY MẮN!', alpha: 0, x: center.x, y: center.y - 115, color: 'rgba(255,255,255,0.95)', life: 3.0, large: true };
+            hintCooldown = 3.5;
+        } else {
+            // Post-tutorial pause ended (e.g. footstep teaching) — show follow-up context
+            if (tutorialFootstepShown) {
+                activeHint = { text: 'CÓ LOÀI KHÔNG CÓ MẮT — CHỈ NGHE TIẾNG CHÂN!', alpha: 0,
+                    x: center.x, y: center.y - 100, color: 'rgba(255,160,60,0.92)', life: 3.5, large: false };
+                hintCooldown = 4.0;
+            }
+        }
+    }
+
+    // --- GAME LOOP ---
+    function update(time) {
+        if (gameState !== 'playing') return;
+        let dt = (time - lastTime) / 1000; lastTime = time; if(dt > 0.1) dt = 0.1;
+        justPlayedFootstep = false;
+
+        // Light params needed for draw even during tutorial pause
+        let lightMod = lightSparks <= 100
+            ? Math.max(0.3, 0.3 + (lightSparks / 100) * 0.7)
+            : Math.min(1.5, 1.0 + ((lightSparks - 100) / 700) * 0.5);
+        let env = levelData.env;
+        let actualLightSpread = (env.narrow ? Math.PI / 5 : Math.PI / 3) * lightMod;
+        let actualLightRadius = (env.shortLight ? Math.max(canvas.width, canvas.height) * 0.35 : Math.max(canvas.width, canvas.height)) * ((lightMod + 1)/2);
+        isLightOn = isHoldingTouch;
+
+        // Tutorial pause — game logic frozen, but phase-specific logic still runs
+        if (tutorialPaused) {
+            if (activeHint) activeHint.alpha = Math.min(1, (activeHint.alpha || 0) + dt * 3.5);
+            if (tutorialPhaseTimer > 0) tutorialPhaseTimer -= dt;
+
+            // Phases 2 & 8: enemy frozen but light still burns it
+            // tutorialPhaseTimer > 0 = intro delay (hint fading in), burn not yet active
+            if ((tutorialPhase === 2 || tutorialPhase === 8) && tutorialPhaseTimer <= 0) {
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    let e = enemies[i];
+                    let dx = e.x - center.x, dy = e.y - center.y;
+                    let diff = Math.abs(Math.atan2(dy, dx) - lightAngle);
+                    if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                    e.inLight = isLightOn && (diff < actualLightSpread / 2);
+                    if (e.inLight) {
+                        e.burnProgress += (dt / e.burnReq);
+                        if (e.burnProgress >= 1) {
+                            e.isDead = true;
+                            tutorialWispsKilled++;
+                            lightSparks = Math.min(800, lightSparks + 10);
+                            playDeathSound();
+                            spawnDeathParticles(e.x, e.y, e.type);
+                            spawnFloatingText(e.x, e.y - e.radius - 8, '+10');
+                            lightFlareTimer = 0.13;
+                            killShakeTimer = 0.10;
+                            enemies.splice(i, 1);
+                        }
+                    }
+                }
+            }
+
+            // Phase 4: force light ON + drain focus to demonstrate mechanic
+            if (tutorialPhase === 4) {
+                isLightOn = true;
+                focus = Math.max(0, focus - 20 * dt);
+                let focusPct = focus / 100;
+                focusFill.style.width = (focusPct * 100) + '%';
+                focusFill.style.background = focus > 60 ? '#00ccff' : focus > 30 ? '#ff9900' : '#ff3300';
+            }
+
+            // Phase 5: regen focus when player releases (show recovery)
+            if (tutorialPhase === 5) {
+                if (!isHoldingTouch) focus = Math.min(100, focus + 38 * dt);
+                let focusPct = focus / 100;
+                focusFill.style.width = (focusPct * 100) + '%';
+                focusFill.style.background = focus > 60 ? '#00ccff' : focus > 30 ? '#ff9900' : '#ff3300';
+            }
+
+            // Phase 7: force dark + drain sparks to demonstrate mechanic
+            if (tutorialPhase === 7) {
+                isLightOn = false;
+                lightSparks = Math.max(140, lightSparks - 28 * dt);
+                document.getElementById('sparksValue').innerText = Math.floor(lightSparks);
+            }
+
+            // Update floating text animations during pause
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let t = floatingTexts[i];
+                t.y -= 28 * dt; t.alpha -= 0.6 * dt;
+                if (t.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+            if (lightFlareTimer > 0) lightFlareTimer -= dt;
+            if (killShakeTimer > 0) killShakeTimer -= dt;
+
+            if (tutorialPhaseCheck && tutorialPhaseCheck()) advanceTutorialPhase();
+            draw(actualLightSpread, actualLightRadius);
+            requestAnimationFrame(update);
+            return;
+        }
+
+        timeSurvived += dt;
+        let drainRate = env.fastDrain ? 25 : 15;
+        let regenRate = env.fastDrain ? 30 : 40;
+        let sparkDrainRate = 10 + (currentSelectedLevel * 5);
+
+        if (env.flicker && isHoldingTouch && !isForcedBlink) {
+            randomFlickerTimer -= dt;
+            if(randomFlickerTimer <= 0) {
+                if(Math.random() < 0.3) { isLightOn = false; randomFlickerTimer = 0.15; }
+                else randomFlickerTimer = 0.5 + Math.random();
+            }
+        }
+
+        // Focus & Sparks Meter
+        if(isForcedBlink) {
+            isLightOn = false; forcedBlinkTimer -= dt;
+            darkGraceTimer += dt;
+            if (darkGraceTimer > 0.5) { lightSparks -= sparkDrainRate * dt; if (lightSparks <= 0) { lightSparks = 0; deathReason = 'sparks'; triggerGameOver(); } }
+            if(forcedBlinkTimer <= 0) { isForcedBlink = false; focus = 30; }
+        } else {
+            if (isLightOn) {
+                darkGraceTimer = 0;
+                if (tutorialPhase <= 0 || tutorialPhase > 3) {  // suppress focus drain during combat tutorial phases
+                    focus -= drainRate * dt; if (focus <= 0) { focus = 0; isForcedBlink = true; forcedBlinkTimer = 1.5; }
+                }
+            } else {
+                darkGraceTimer += dt;
+                if (tutorialPhase <= 0 || tutorialPhase > 5) {  // suppress spark drain until after it's been taught
+                    if (darkGraceTimer > 0.5) {
+                        lightSparks -= sparkDrainRate * dt;
+                        if (lightSparks <= 0) { lightSparks = 0; deathReason = 'sparks'; triggerGameOver(); }
+                    }
+                }
+                focus += regenRate * dt; if (focus > 100) focus = 100;
+            }
+        }
+        document.getElementById('sparksValue').innerText = Math.floor(lightSparks);
+
+        // Spawn Quái (Tạo những khoảng lặng chết chóc: Có lúc không spawn gì)
+        if (tutorialPhase <= 0) enemySpawnTimer -= dt;  // no auto-spawn during tutorial
+        if (tutorialPhase <= 0 && enemySpawnTimer <= 0) {
+            if (Math.random() > 0.1) { // 90% cơ hội ra quái bình thường, 10% ra khoảng lặng 3s
+                let spawnType = levelData.types[Math.floor(Math.random() * levelData.types.length)];
+                enemies.push(new Enemy(spawnType));
+                enemySpawnTimer = levelData.spawnRate + (Math.random() * 0.5);
+            } else {
+                enemySpawnTimer = 3.0; // Khoảng lặng đột ngột
+            }
+        }
+
+        // PARANOIA (Ảo giác mắt đỏ và tim đập giả khi Focus thấp)
+        if (subliminalCooldown > 0) subliminalCooldown -= dt;
+        
+        if (focus < 30 && !isLightOn && subliminalCooldown <= 0) {
+            // Tung xúc xắc xem ma có nhảy ra không
+            if (Math.random() < 0.5) {
+                isSubliminalScareActive = true;
+                isHoldingTouch = false; // tắt đèn ngay khi jumpscare bắt đầu
+                subliminalTimer = 3.0; // Màn hình nhấp nháy 3s rồi chớp nháy ảnh ma
+                subliminalCooldown = 15.0; // Cooldown 15 giây
+                scareImgAlpha = 0;
+                // Khi bắt đầu scare, xóa hết quái để tạo không gian sợ hãi kịch tính
+                enemies = []; 
+                hasPlayedScareSound = false; // Chơi tiếng trước để dọa
+            } else {
+                subliminalCooldown = 5.0; // Ko bị dính thì cũng reset nhỏ để chống dồn dập
+            }
+        }
+        
+        if (isSubliminalScareActive) {
+            if (
+                scareImgAlpha > 0.15 &&
+                !hasPlayedScareSound
+            ) {
+                playJumpscare();
+                hasPlayedScareSound = true;
+            }
+            subliminalTimer -= dt;
+            if (subliminalTimer <= 0) {
+                isSubliminalScareActive = false; // Hết 3 giây
+                hasPlayedScareSound = false;
+                scareImgAlpha = 0;
+            } else {
+                // Nhấp nháy loạn xạ
+                if (Math.random() < 0.2) {
+                    scareImgAlpha = Math.random() > 0.5 ? 0.8 : 0; 
+                } else if (subliminalTimer < 0.5) {
+                    // Cú chót trước khi biến mất: Ma vụt sát mặt rõ nhất
+                    scareImgAlpha = 0.9;
+                } else {
+                    scareImgAlpha *= 0.8; // Phai dần nhanh chóng để chớp tiếp
+                }
+            }
+        } else if (focus < 40 && !isLightOn) {
+            if (Math.random() < 0.08) { 
+                let angle = Math.random() * Math.PI * 2;
+                let dist = 80 + Math.random() * 150;
+                fakeEyes.push({ x: center.x + Math.cos(angle)*dist, y: center.y + Math.sin(angle)*dist, life: 0.8 });
+            }
+            if (Math.random() < 0.01) playHeartbeat(true); 
+        }
+        for(let i = fakeEyes.length - 1; i >= 0; i--) {
+            fakeEyes[i].life -= dt;
+            if(fakeEyes[i].life <= 0) fakeEyes.splice(i, 1);
+        }
+
+        // Layer 4: Phantom footstep — tiếng bước chân ảo không có quái thật, pan ngẫu nhiên
+        if (!isLightOn) {
+            phantomSoundTimer -= dt;
+            if (phantomSoundTimer <= 0) {
+                if (Math.random() < 0.4) {
+                    let fakeDist = 120 + Math.random() * 280;
+                    let fakePan = (Math.random() * 2 - 1);
+                    playFootstep(fakeDist, fakePan);
+                }
+                phantomSoundTimer = 2.5 + Math.random() * 4.0;
+            }
+        }
+
+        // Ambient environmental sounds — tiếng vỡ, kéo lê, la xa; chỉ khi tắt đèn
+        if (!isLightOn) {
+            ambientSoundTimer -= dt;
+            if (ambientSoundTimer <= 0) {
+                let pan = (Math.random() * 2 - 1) * 0.85;
+                let roll = Math.random();
+                if (roll < 0.45) playAmbientBreaking(pan);
+                else if (roll < 0.75) playAmbientDragging(pan);
+                else playDistantScream(pan);
+                ambientSoundTimer = 6 + Math.random() * 9;
+            }
+        }
+
+        let isAnyEnemyClose = false;
+        let maxStalkerGlitch = 0; 
+
+        for(let i = enemies.length - 1; i >= 0; i--) {
+            let status = enemies[i].update(dt, actualLightSpread, lightMod);
+            
+            if (status.dist < 160 && !status.isDead) {
+                if (enemies[i].type === 'stalker') {
+                    let intensity = 1 - (status.dist / 160);
+                    if(intensity > maxStalkerGlitch) maxStalkerGlitch = intensity;
+                } else if (enemies[i].type !== 'phantom' && enemies[i].type !== 'moth') {
+                    isAnyEnemyClose = true;
+                }
+            }
+
+            if(enemies[i].isDead) {
+                if(enemies[i].type === 'wisp') tutorialWispsKilled++;
+                if(enemies[i].type !== 'phantom' && enemies[i].type !== 'moth') killsThisLevel++;
+                enemies.splice(i, 1);
+            }
+        }
+
+        currentGlitchIntensity = maxStalkerGlitch;
+        updateStaticSound(currentGlitchIntensity);
+
+        // Update kill feedback timers
+        if (lightFlareTimer > 0) lightFlareTimer -= dt;
+        if (killShakeTimer > 0) killShakeTimer -= dt;
+        for (let i = deathParticles.length - 1; i >= 0; i--) {
+            let p = deathParticles[i];
+            p.x += p.vx * dt; p.y += p.vy * dt;
+            p.vy += 120 * dt;
+            p.alpha -= p.decay * dt;
+            if (p.alpha <= 0) deathParticles.splice(i, 1);
+        }
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let t = floatingTexts[i];
+            t.y += t.vy * dt;
+            t.alpha -= t.decay * dt;
+            if (t.alpha <= 0) floatingTexts.splice(i, 1);
+        }
+
+        // Update hint system
+        if (hintCooldown > 0) hintCooldown -= dt;
+        if (activeHint) {
+            const HT = 3.2, FI = 0.3, FO = 0.6;
+            activeHint.life -= dt;
+            if (activeHint.life > HT - FI) activeHint.alpha = (HT - activeHint.life) / FI;
+            else if (activeHint.life < FO) activeHint.alpha = Math.max(0, activeHint.life / FO);
+            else activeHint.alpha = 1;
+            if (activeHint.life <= 0) activeHint = null;
+        }
+
+        // Update teleport flashes
+        for (let i = teleportFlashes.length - 1; i >= 0; i--) {
+            teleportFlashes[i].alpha -= dt * 3.5;
+            if (teleportFlashes[i].alpha <= 0) teleportFlashes.splice(i, 1);
+        }
+
+        // Update footstep ripples
+        for (let i = footstepRipples.length - 1; i >= 0; i--) {
+            footstepRipples[i].radius += 45 * dt;
+            footstepRipples[i].alpha -= dt * 1.8;
+            if (footstepRipples[i].alpha <= 0) footstepRipples.splice(i, 1);
+        }
+
+        let uiGlitchOpacity = 0;
+        if (currentGlitchIntensity > 0) {
+            uiGlitchOpacity = currentGlitchIntensity * 0.8;
+            vignette.style.boxShadow = `inset 0 0 ${150 + Math.random()*100}px rgba(200,200,255, ${currentGlitchIntensity})`; 
+        } else if (isAnyEnemyClose) {
+            vignette.style.boxShadow = `inset 0 0 ${150 + Math.sin(time/100)*50}px rgba(255,0,0,0.7)`;
+            heartbeatTimer -= dt;
+            if(heartbeatTimer <= 0) { playHeartbeat(false); heartbeatTimer = 0.35; }
+        } else {
+            vignette.style.boxShadow = "inset 0 0 150px rgba(0,0,0,0.8)";
+            heartbeatTimer = 0;
+        }
+
+        focusFill.style.width = focus + "%";
+        if(focus < 40) {
+            focusFill.style.background = "#ff3333";
+            if(currentGlitchIntensity === 0) uiGlitchOpacity = (1 - focus/40) * 0.3; 
+        } else {
+            focusFill.style.background = "#00ffcc";
+        }
+        if(isForcedBlink) focusFill.style.background = "#333";
+        staticNoise.style.opacity = uiGlitchOpacity;
+
+        if(levelData.type === 'survive') {
+            let timeLeft = Math.max(0, levelData.target - timeSurvived);
+            objectiveValueEl.innerText = timeLeft.toFixed(1) + "s";
+            if(timeLeft <= 0) triggerWin();
+        } else if (levelData.type === 'kill') {
+            objectiveValueEl.innerText = `${killsThisLevel} / ${levelData.target}`;
+            if(killsThisLevel >= levelData.target) triggerWin();
+        }
+
+        // === TUTORIAL TRIGGERS (Map 1 & 2 only) ===
+        if (isTutorialActive()) {
+            // Focus drain: when focus drops while holding light
+            if (!tutorialState.focusDrain && focus < 62 && isLightOn)
+                tryShowHint('focusDrain', 'THẢ TAY ĐỂ HỒI NĂNG LƯỢNG', center.x, canvas.height - 140, 'rgba(0,255,204,0.95)');
+
+            // Forced blink
+            if (!tutorialState.forcedBlink && isForcedBlink)
+                tryShowHint('forcedBlink', 'ĐỪNG GIỮ ĐÈN QUÁ LÂU!', center.x, center.y - 90, 'rgba(255,80,80,0.95)', true);
+
+            // Sparks drain in dark
+            if (!tutorialState.darkDrain && tutorialState.focusDrain && !isLightOn && darkGraceTimer > 0.5 && lightSparks < 92)
+                tryShowHint('darkDrain', 'SỨC MẠNH CẠN TRONG BÓNG TỐI', center.x, canvas.height - 140, 'rgba(255,234,0,0.95)');
+
+            // Sparks critically low
+            if (!tutorialState.darkDanger && lightSparks > 0 && lightSparks < 28)
+                tryShowHint('darkDanger', 'CẠN SỨC MẠNH = CHẾT!', center.x, canvas.height - 140, 'rgba(255,50,50,0.95)', true);
+
+            // Enemy close but not in light → behind warning
+            if (!tutorialState.behind && timeSurvived > 6) {
+                let hasClose = enemies.some(e => !e.isDead && !e.inLight && Math.hypot(e.x - center.x, e.y - center.y) < 160);
+                if (hasClose) tryShowHint('behind', 'QUÁI ĐẾN TỪ MỌI PHÍA!', center.x, center.y - 100, 'rgba(255,140,50,0.95)', true);
+            }
+
+            // Footstep tutorial
+            // First real footstep heard after structured tutorial → pause + teach invisible enemy mechanic
+            if (!tutorialFootstepShown && justPlayedFootstep && currentSelectedLevel === 0
+                    && tutorialPhase <= 0 && !tutorialPaused) {
+                tutorialFootstepShown = true;
+                tutorialState.footstep = true;
+                tutorialPaused = true;
+                hintCooldown = 0;
+                tutorialPhaseTimer = 1.5; // minimum show time before player can dismiss
+                activeHint = { text: 'TIẾNG BƯỚC CHÂN! CÓ NGUY HIỂM ĐẾN!', alpha: 0,
+                    x: center.x, y: center.y - 115, color: 'rgba(255,120,40,0.98)', life: 999, large: true };
+                tutorialPhaseCheck = () => tutorialPhaseTimer <= 0 && isHoldingTouch;
+            }
+
+            // Moth warning — fire the FIRST time any moth appears during real gameplay
+            if (!tutorialState.mothWarn && enemies.some(e => e.type === 'moth' && !e.isDead)) {
+                tutorialState.mothWarn = true;
+                hintCooldown = 0;
+                activeHint = { text: 'ÁNH SÁNG TRẮNG — ĐỪNG CHIẾU! SẼ CHẾT NGAY!', alpha: 0,
+                    x: center.x, y: center.y - 115, color: 'rgba(255,255,220,0.98)', life: 4.0, large: true };
+                hintCooldown = 4.5;
+            }
+
+            // Paranoia
+            if (!tutorialState.paranoia && fakeEyes.length > 0)
+                tryShowHint('paranoia', 'ẢO GIÁC...', center.x, center.y, 'rgba(160,80,255,0.95)', true);
+        }
+
+        // Check tutorial phase advancement even when NOT paused (e.g. Phase 3 free-play)
+        if (!tutorialPaused && tutorialPhaseCheck && tutorialPhaseCheck()) advanceTutorialPhase();
+
+        // Timer pulse when nearly done
+        if (levelData.type === 'survive') {
+            let tLeft = Math.max(0, levelData.target - timeSurvived);
+            if (tLeft > 0 && tLeft < 10) {
+                let p = (Math.sin(Date.now() / 200) + 1) / 2;
+                objectiveValueEl.style.color = `rgb(255, ${Math.floor(50 + p * 150)}, ${Math.floor(p * 60)})`;
+                objectiveValueEl.style.transform = `scale(${1 + p * 0.1})`;
+            } else {
+                objectiveValueEl.style.color = '';
+                objectiveValueEl.style.transform = '';
+            }
+        }
+
+        draw(actualLightSpread, actualLightRadius);
+        requestAnimationFrame(update);
+    }
+
+    function draw(lightSpread, lightRadius) {
+        center = { x: canvas.width/2, y: canvas.height/2 };
+
+        // Light flare burst on kill
+        if (lightFlareTimer > 0) {
+            let flare = lightFlareTimer / 0.13;
+            lightSpread *= (1 + flare * 0.55);
+            lightRadius *= (1 + flare * 0.18);
+        }
+
+        // Screen shake on kill or damage
+        ctx.save();
+        if (killShakeTimer > 0) {
+            let mag = killShakeTimer * 45;
+            ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag);
+        } else if (damageShakeNow) {
+            ctx.translate((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14);
+            damageShakeNow = false; // tắt ngay sau 1 frame
+        }
+
+        // VẼ BACKGROUND
+        let bgImg = getBgImage(levelData.env.bgUrl);
+        if (bgImg) {
+            // Nếu map có set link bgUrl -> Vẽ background hình nền đó
+            ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+            // Bạn có thể vẽ thêm 1 lớp màu đen mờ (opacity) đè lên hình nền nếu hình nền nguyên bản bị sáng quá
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+            // Nếu không có ảnh -> VẼ BACKGROUND CARO MẶC ĐỊNH cũ
+            ctx.fillStyle = '#080808'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.beginPath();
+            for(let x = 0; x < canvas.width; x += 50) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+            for(let y = 0; y < canvas.height; y += 50) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+            ctx.stroke();
+        }
+
+        ctx.save(); ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(canvas.width, 0); ctx.lineTo(canvas.width, canvas.height); ctx.lineTo(0, canvas.height); ctx.lineTo(0, 0);
+        if (isLightOn) { ctx.moveTo(center.x, center.y); ctx.arc(center.x, center.y, lightRadius, lightAngle + lightSpread/2, lightAngle - lightSpread/2, true); ctx.lineTo(center.x, center.y); }
+        ctx.fillStyle = isForcedBlink ? 'rgba(0,0,0,0.99)' : (levelData.env.shortLight ? 'rgba(0,0,0,0.95)' : 'rgba(0,0,0,0.92)');
+        ctx.fill(); ctx.restore();
+
+        if (isLightOn) {
+            ctx.save(); ctx.beginPath();
+            ctx.moveTo(center.x, center.y); ctx.arc(center.x, center.y, lightRadius, lightAngle - lightSpread/2, lightAngle + lightSpread/2); ctx.closePath();
+            
+            let flickerIntensity = currentGlitchIntensity > 0 ? (Math.random() * currentGlitchIntensity) : 0;
+            let lightIntensity = focus < 20 ? (0.3 + Math.random()*0.2) : (0.6 - flickerIntensity);
+            if(lightIntensity < 0.1) lightIntensity = 0.1;
+
+            let gradient = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, lightRadius*0.9);
+            gradient.addColorStop(0, `rgba(255, 255, 200, ${lightIntensity})`);
+            gradient.addColorStop(0.5, `rgba(255, 255, 220, ${lightIntensity * 0.4})`);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient; ctx.globalCompositeOperation = 'lighter'; ctx.fill();
+            ctx.globalCompositeOperation = 'source-over'; ctx.beginPath();
+            ctx.moveTo(center.x, center.y); ctx.lineTo(center.x + Math.cos(lightAngle - lightSpread/2) * lightRadius, center.y + Math.sin(lightAngle - lightSpread/2) * lightRadius);
+            ctx.moveTo(center.x, center.y); ctx.lineTo(center.x + Math.cos(lightAngle + lightSpread/2) * lightRadius, center.y + Math.sin(lightAngle + lightSpread/2) * lightRadius);
+            ctx.strokeStyle = `rgba(255, 255, 255, ${lightIntensity * 0.4})`; ctx.lineWidth = 1; ctx.stroke();
+            ctx.restore();
+        }
+
+        if (!isLightOn) {
+            fakeEyes.forEach(eye => {
+                ctx.fillStyle = `rgba(255, 0, 0, ${eye.life})`; 
+                ctx.beginPath(); ctx.arc(eye.x-4, eye.y-3, 2.5, 0, Math.PI*2); ctx.arc(eye.x+4, eye.y-3, 2.5, 0, Math.PI*2); ctx.fill();
+            });
+        }
+
+        // Draw teleport flashes (enemy blink trails)
+        teleportFlashes.forEach(f => {
+            if (f.alpha <= 0) return;
+            ctx.globalAlpha = f.alpha * 0.6;
+            ctx.fillStyle = f.color;
+            ctx.shadowBlur = 6; ctx.shadowColor = f.color;
+            ctx.beginPath(); ctx.arc(f.x, f.y, 9, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+
+        // Draw footstep ripples (only when dark)
+        if (!isLightOn) {
+            footstepRipples.forEach(r => {
+                if (r.alpha <= 0) return;
+                ctx.globalAlpha = r.alpha * 0.7;
+                ctx.strokeStyle = 'rgba(160,160,220,0.9)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2); ctx.stroke();
+            });
+            ctx.globalAlpha = 1; ctx.lineWidth = 1;
+        }
+
+        if (!isSubliminalScareActive) {
+            enemies.forEach(enemy => enemy.draw());
+        }
+
+        if (!isSubliminalScareActive) {
+            ctx.save();
+            ctx.translate(center.x, center.y);
+            ctx.rotate(lightAngle);
+            
+            if (isPlayerImgLoaded) {
+                // VẼ ẢNH NHÂN VẬT THAY VÌ CHẤM TRÒN
+                let scaleCuaAnh = 5; // <--- SỬA SỐ NÀY ĐỂ PHÓNG TO / THU NHỎ ẢNH (Ví dụ: 3 là vừa, 5 là to bự)
+                let imgSize = playerRadius * scaleCuaAnh; 
+                ctx.drawImage(playerImg, -imgSize/2, -imgSize/2, imgSize, imgSize);
+                
+                // Vẽ đèn pin đính kèm tay cầm
+                // Lấy mép ngoài của ảnh (imgSize / 2) làm chuẩn để đèn không bao giờ bị đè lên hình
+                let denPinX = (imgSize / 2) - 5; // Thêm/bớt số -5 này để nhích đèn ra xa hoặc xích lại gần hơn!
+                ctx.fillStyle = isLightOn ? '#e6e6cc' : '#444'; ctx.fillRect(denPinX, -4, 10, 8); 
+                ctx.fillStyle = isLightOn ? '#fff' : '#222'; ctx.fillRect(denPinX + 8, -6, 6, 12); 
+            } else {
+                // FALLBACK: Vẽ code cũ nếu chưa có ảnh
+                ctx.rotate(-lightAngle); // Undo xoay cho hình nhân vật tròn
+                ctx.beginPath(); ctx.arc(0, 0, playerRadius, 0, Math.PI*2);
+                ctx.fillStyle = isLightOn ? '#fff' : '#666'; ctx.shadowBlur = isLightOn ? 10 : 0; ctx.shadowColor = '#fff'; ctx.fill(); ctx.shadowBlur = 0;
+                ctx.rotate(lightAngle); // Trả lại góc xoay
+                
+                ctx.fillStyle = isLightOn ? '#e6e6cc' : '#444'; ctx.fillRect(playerRadius - 2, -4, 10, 8); 
+                ctx.fillStyle = isLightOn ? '#fff' : '#222'; ctx.fillRect(playerRadius + 6, -6, 6, 12); 
+            }
+            ctx.restore();
+        }
+
+        // HP dots — phía trên đầu player, dễ nhìn trong lúc chơi
+        for (let i = 0; i < maxPlayerHP; i++) {
+            let hx = center.x + (i - (maxPlayerHP - 1) / 2) * 11;
+            let hy = center.y - playerRadius - 32;
+            ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+            if (i < playerHP) {
+                ctx.fillStyle = '#dd0000';
+                ctx.shadowColor = '#ff2222'; ctx.shadowBlur = 7;
+            } else {
+                ctx.fillStyle = '#2a0808';
+                ctx.shadowBlur = 0;
+            }
+            ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+
+        // Peripheral danger indicators (! at screen edge for nearby enemies not in light)
+        enemies.forEach(enemy => {
+            if (enemy.isDead || enemy.type === 'stalker') return;
+            let ddx = enemy.x - center.x, ddy = enemy.y - center.y;
+            let ddist = Math.hypot(ddx, ddy);
+            if (ddist > 55 && ddist < 175 && !enemy.inLight) {
+                let agl = Math.atan2(ddy, ddx);
+                let er = Math.min(canvas.width, canvas.height) * 0.37;
+                let ix = center.x + Math.cos(agl) * er;
+                let iy = center.y + Math.sin(agl) * er;
+                let pulse = (Math.sin(Date.now() / 170) + 1) / 2;
+                let intensity = (1 - ddist / 175);
+                ctx.globalAlpha = intensity * (0.45 + pulse * 0.55);
+                ctx.fillStyle = enemy.type === 'wisp' ? '#4499ff' : '#ff3333';
+                ctx.shadowBlur = 10; ctx.shadowColor = enemy.type === 'wisp' ? '#4499ff' : '#ff3333';
+                ctx.font = `bold ${15 + Math.floor(pulse * 5)}px "Courier New", monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText('!', ix, iy);
+            }
+        });
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left';
+
+        // Vẽ Jumpscare Ma đè lên nếu đang active
+        if (isSubliminalScareActive && isScareImgLoaded && scareImgAlpha > 0.05) {
+            ctx.save();
+            ctx.globalAlpha = scareImgAlpha;
+            // Cho rung lắc ảnh ma
+            let shakeX = (Math.random() - 0.5) * 40;
+            let shakeY = (Math.random() - 0.5) * 40;
+            
+            // Vẽ sát màn hình 
+            let drawWidth = canvas.width * 1.2;
+            let drawHeight = canvas.height * 1.2;
+            ctx.drawImage(scareImg, -canvas.width * 0.1 + shakeX, -canvas.height * 0.1 + shakeY, drawWidth, drawHeight);
+            
+            ctx.fillStyle = `rgba(255, 0, 0, ${scareImgAlpha * 0.5})`;
+            ctx.fillRect(0,0, canvas.width, canvas.height);
+            ctx.restore();
+        }
+
+        // Draw death particles
+        deathParticles.forEach(p => {
+            if (p.alpha <= 0) return;
+            ctx.globalAlpha = Math.max(0, p.alpha);
+            ctx.fillStyle = p.color;
+            ctx.shadowBlur = 10; ctx.shadowColor = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+
+        // Draw floating kill texts
+        ctx.textAlign = 'center';
+        floatingTexts.forEach(t => {
+            if (t.alpha <= 0) return;
+            ctx.globalAlpha = Math.max(0, Math.min(1, t.alpha));
+            ctx.fillStyle = t.color;
+            ctx.shadowBlur = 8; ctx.shadowColor = t.color;
+            ctx.font = 'bold 15px "Courier New", Courier, monospace';
+            ctx.fillText(t.text, t.x, t.y);
+        });
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left';
+
+        // Draw active tutorial hint
+        if (activeHint && activeHint.alpha > 0.02) {
+            ctx.save();
+            ctx.globalAlpha = activeHint.alpha;
+            let fs = activeHint.large ? 19 : 13;
+            ctx.font = `bold ${fs}px "Courier New", Courier, monospace`;
+            ctx.textAlign = 'center';
+            let tw = ctx.measureText(activeHint.text).width;
+            // Dark background pill
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.beginPath();
+            ctx.roundRect(activeHint.x - tw/2 - 12, activeHint.y - fs - 2, tw + 24, fs + 10, 6);
+            ctx.fill();
+            // Text with glow
+            ctx.shadowBlur = 10; ctx.shadowColor = activeHint.color;
+            ctx.fillStyle = activeHint.color;
+            ctx.fillText(activeHint.text, activeHint.x, activeHint.y);
+            ctx.restore();
+            ctx.textAlign = 'left';
+        }
+
+        ctx.restore(); // end kill shake
+    }
+
+    // --- UI FLOW ---
+    function renderMap() {
+        const container = document.getElementById('sagasContainer'); container.innerHTML = '';
+        if(document.getElementById('mapSparksDisplay')) document.getElementById('mapSparksDisplay').innerText = `SỨC MẠNH HIỆN CÓ: ${Math.floor(lightSparks)}`;
+        
+        gameLevels.forEach((level, i) => {
+            let isUnlocked = isAllUnlocked || (i <= maxUnlockedLevel && lightSparks >= level.reqSparks);
+            
+            // Nếu đủ điều kiện mở khóa map tiếp theo
+            if (!isAllUnlocked && i === maxUnlockedLevel && lightSparks >= level.reqSparks) {
+                isUnlocked = true;
+            } else if (!isAllUnlocked && i > maxUnlockedLevel) {
+                isUnlocked = false; // Phải qua map trước mới tới map sau
+            }
+
+            let div = document.createElement('div'); 
+            div.className = 'saga-container';
+            div.style.cursor = isUnlocked ? 'pointer' : 'not-allowed';
+            div.style.border = isUnlocked ? '2px solid #550000' : '2px solid #222';
+            div.style.backgroundColor = isUnlocked ? '#1a0505' : '#0a0a0a';
+            div.style.padding = '20px';
+            div.style.transition = '0.3s';
+
+            let lockText = isUnlocked ? "" : `<div style="color: #ff3333; font-size: 14px; margin-top: 10px;">🔒 Vượt màn trước & Cần ${level.reqSparks} Sức mạnh</div>`;
+            div.innerHTML = `<div class="saga-title" style="color:${isUnlocked ? '#ff3333' : '#666'}">${level.name} - ${level.title}</div>
+                             <div class="saga-desc" style="color:#aaa">${isUnlocked ? '(Nhấn để chơi thẳng)' : '...'}</div>${lockText}`;
+            
+            if (isUnlocked) {
+                div.onclick = () => showPreLevelInfo(i);
+                div.onmouseover = () => { div.style.backgroundColor = '#330000'; div.style.transform = 'scale(1.02)'; };
+                div.onmouseout = () => { div.style.backgroundColor = '#1a0505'; div.style.transform = 'scale(1)'; };
+            }
+            container.appendChild(div);
+        });
+    }
+
+    function showMap() {
+        gameState = 'menu';
+        document.querySelectorAll('.screen').forEach(el => el.style.display = 'none');
+        document.getElementById('uiLayer').style.display = 'none'; document.getElementById('mapScreen').style.display = 'flex';
+        renderMap(); ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0,0,canvas.width, canvas.height);
+        updateStaticSound(0); 
+        bgmAudioPlayer.pause(); // Cúp nhạc đi khi về Màn hình ngoài
+    }
+
+    function toggleUnlockAllLevels() {
+        isAllUnlocked = !isAllUnlocked;
+        if (isAllUnlocked) {
+            realMaxUnlockedLevel = maxUnlockedLevel;
+            maxUnlockedLevel = gameLevels.length - 1;
+            lightSparks = 800;
+            document.getElementById('unlockBtn').innerText = "🔒 Tắt Mở Khóa (Về Khóa)";
+            document.getElementById('unlockBtn').style.borderColor = "#00ffcc";
+            document.getElementById('unlockBtn').style.color = "#00ffcc";
+        } else {
+            maxUnlockedLevel = realMaxUnlockedLevel;
+            lightSparks = 100;
+            document.getElementById('unlockBtn').innerText = "🔓 Mở Khóa Tất Cả Màn Chơi";
+            document.getElementById('unlockBtn').style.borderColor = "#555";
+            document.getElementById('unlockBtn').style.color = "#aaa";
+        }
+        renderMap();
+    }
+
+    function showPreLevelInfo(levelIndex) {
+        document.querySelectorAll('.screen').forEach(el => el.style.display = 'none'); 
+        currentSelectedLevel = levelIndex; levelData = gameLevels[levelIndex];
+        document.getElementById('mapScreen').style.display = 'none'; document.getElementById('startScreen').style.display = 'flex';
+        
+        document.getElementById('preLevelTitle').innerText = `${levelData.name}: ${levelData.title}`;
+        document.getElementById('preLevelDesc').innerHTML = levelData.desc;
+        
+        let objText = levelData.type === 'survive' ? `SỐNG SÓT TRONG ${levelData.target} GIÂY` : `TIÊU DIỆT ${levelData.target} THỰC THỂ`;
+
+        darkGraceTimer = 0;
+        document.getElementById('preLevelObjective').innerHTML = objText;
+    }
+
+    function startGame() {
+        document.querySelectorAll('.screen').forEach(el => el.style.display = 'none'); document.getElementById('uiLayer').style.display = 'flex';
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        playerHP = maxPlayerHP;
+        updateHPDisplay();
+        startStaticSound(); 
+        
+        // Phát nhạc nền cho Map đang chơi (Nếu có link)
+        let bgmUrl = bgmAudioUrls[currentSelectedLevel] || bgmAudioUrls[0];
+        if (bgmUrl && bgmAudioPlayer.src !== bgmUrl) {
+            bgmAudioPlayer.src = bgmUrl;
+        }
+        if (bgmAudioPlayer.src && bgmAudioPlayer.src !== window.location.href) {
+            bgmAudioPlayer.currentTime = 0;
+            bgmAudioPlayer.play().catch(e => console.log("Lỗi BGM", e));
+        }
+
+        timeSurvived = 0; killsThisLevel = 0; focus = 100; enemies = []; fakeEyes = []; deathParticles = []; floatingTexts = []; lightFlareTimer = 0; killShakeTimer = 0; damageShakeNow = false; deathReason = ''; teleportFlashes = []; footstepRipples = []; justPlayedFootstep = false; activeHint = null; hintCooldown = 0;
+        enemySpawnTimer = 1; isHoldingTouch = false; isLightOn = false; isForcedBlink = false; currentGlitchIntensity = 0;
+        phantomSoundTimer = 1.5 + Math.random() * 2;
+        ambientSoundTimer = 3 + Math.random() * 4;
+        jumpscare.style.opacity = 0; jumpscare.style.display = 'none'; staticNoise.style.opacity = 0;
+        vignette.style.boxShadow = "inset 0 0 150px rgba(0,0,0,0.8)";
+        
+        // Load ảnh ma tương ứng theo Map (gán đường link từ mảng)
+        isSubliminalScareActive = false;
+        scareImgAlpha = 0;
+        isScareImgLoaded = false;
+        scareImg.src = scareImageUrls[currentSelectedLevel] || scareImageUrls[0];
+        
+        let audioUrl = scareAudioUrls[currentSelectedLevel] || scareAudioUrls[0];
+        if (audioUrl) {
+            scareAudioPlayer.src = audioUrl;
+            scareAudioPlayer.load();
+        } else {
+            scareAudioPlayer.src = "";
+        }
+        
+        objectiveTitleEl.innerText = levelData.type === 'survive' ? 'SỐNG SÓT' : 'TIÊU DIỆT';
+        objectiveValueEl.innerText = levelData.type === 'survive' ? levelData.target + "s" : `0 / ${levelData.target}`;
+
+        // Tutorial init
+        tutorialPaused = false; tutorialPhaseCheck = null; tutorialWispsKilled = 0; tutorialPhaseTimer = 0; tutorialFootstepShown = false;
+        if (currentSelectedLevel === 0 && !tutorialState.holdLight) {
+            center = { x: canvas.width / 2, y: canvas.height / 2 };
+            tutorialPhase = 1;
+            tutorialPaused = true;
+            tutorialPhaseCheck = () => isHoldingTouch;
+            hintCooldown = 0;
+            activeHint = { text: 'GIỮ MÀN HÌNH ĐỂ BẬT ĐÈN', alpha: 0, x: center.x, y: center.y - 80, color: 'rgba(255,255,255,0.95)', life: 999, large: true };
+        } else {
+            tutorialPhase = -1;
+        }
+
+        gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(update);
+    }
+
+    function stopAllSounds() {
+        footstepPool.forEach(a => { a.pause(); a.currentTime = 0; });
+        scareAudioPlayer.pause();
+        bgmAudioPlayer.pause();
+        if (staticGain) staticGain.gain.value = 0;
+        if (audioCtx.state === 'running') audioCtx.suspend();
+    }
+
+    function triggerGameOver() {
+        lightSparks = 100;
+        gameState = 'lose';
+        stopAllSounds();
+
+        // Xác định lý do chết và gợi ý
+        let reasonText = '';
+        let tipText = '';
+        if (deathReason === 'wisp') {
+            reasonText = 'Con ma xanh đã chạm tới bạn';
+            tipText = 'Khi thấy ánh XANH xuất hiện → rọi đèn ngay, nó sẽ chết trong tích tắc!';
+        } else if (deathReason === 'moth') {
+            reasonText = 'Bạn đã rọi đèn vào con bướm trắng';
+            tipText = 'Ánh TRẮNG = tử thần. Khi thấy nó, đừng bao giờ chiếu đèn vào — hãy để nó tự biến mất!';
+        } else if (deathReason.startsWith('bite_')) {
+            const names = { watcher: 'Con quỷ đỏ', sprinter: 'Con chạy nhanh', stalker: 'Con vô hình', phantom: 'Con ma xanh lá' };
+            let typeName = names[deathReason.replace('bite_', '')] || 'Thực thể';
+            reasonText = typeName + ' đã cắn bạn';
+            tipText = 'Hãy luôn QUÉT ĐÈN xung quanh — có loài không có mắt, chỉ lộ diện qua TIẾNG BƯỚC CHÂN khi đến gần!';
+        } else if (deathReason === 'sparks') {
+            reasonText = 'Sức mạnh cạn kiệt';
+            tipText = 'Tiêu diệt quái để nạp lại Sức mạnh. Đừng đứng trong bóng tối quá lâu!';
+        }
+        document.getElementById('deathReasonText').innerText = reasonText;
+        document.getElementById('deathTipText').innerText = tipText ? ('💡 ' + tipText) : '';
+
+        jumpscare.style.display = 'block'; jumpscare.style.opacity = 1; document.getElementById('uiLayer').style.display = 'none';
+        setTimeout(() => { jumpscare.style.opacity = 0; document.getElementById('gameOverScreen').style.display = 'flex'; }, 300);
+    }
+
+    function triggerWin() {
+        gameState = 'win'; document.getElementById('uiLayer').style.display = 'none'; updateStaticSound(0);
+        bgmAudioPlayer.pause();
+        if(currentSelectedLevel === maxUnlockedLevel && maxUnlockedLevel < gameLevels.length - 1) maxUnlockedLevel++;
+        document.getElementById('winScreen').style.display = 'flex';
+    }
+
+    function nextLevel() { if(currentSelectedLevel < gameLevels.length - 1) showPreLevelInfo(currentSelectedLevel + 1); else showMap(); }
+
+    // [PRELOAD HỆ THỐNG] - Tải trước màn hình rùng rợn có UI hiển thị %
+    function preloadAllAssets() {
+        let urlsToLoad = [];
+        
+        // Nhặt background các màn
+        gameLevels.forEach(lvl => {
+            if (lvl.env && lvl.env.bgUrl && !urlsToLoad.includes(lvl.env.bgUrl)) urlsToLoad.push(lvl.env.bgUrl);
+        });
+        // Nhặt ảnh ma Jumpscare
+        scareImageUrls.forEach(url => {
+            if (url && url.length > 5 && !urlsToLoad.includes(url)) urlsToLoad.push(url);
+        });
+        // Nhặt ảnh Player
+        if (playerImg.src && !urlsToLoad.includes(playerImg.src)) urlsToLoad.push(playerImg.src);
+
+        let total = urlsToLoad.length;
+        let loaded = 0;
+
+        if (total === 0) {
+            document.getElementById('loadingScreen').style.display = 'none';
+            showMap();
+            return;
+        }
+
+        urlsToLoad.forEach(url => {
+            let img = new Image();
+            img.onload = () => handleLoadFinish();
+            img.onerror = () => handleLoadFinish(); // Lỗi đường link mạng hỏng vẫn cho phép chạy tiếp
+            img.src = url;
+        });
+
+        function handleLoadFinish() {
+            loaded++;
+            let pct = Math.floor((loaded / total) * 100);
+            if(document.getElementById('loadingBar')) {
+                document.getElementById('loadingBar').style.width = pct + "%";
+                document.getElementById('loadingText').innerText = pct + "%";
+            }
+            if (loaded >= total) {
+                // Tải xong -> Delay nhẹ 0.5s để người chơi thấy đạt mốc 100% rồi mới cho vô game
+                setTimeout(() => {
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    showMap();
+                }, 500);
+            }
+        }
+    }
+    
+    // Gọi tính năng này thay thế việc ShowMap trực tiếp
+    preloadAllAssets();
+
+</script>
+</body>
+</html>
